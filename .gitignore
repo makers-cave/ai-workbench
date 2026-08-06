@@ -1,0 +1,16 @@
+# Project-specific ignores
+__pycache__/
+*.py[cod]
+*.log
+.env
+.env.*
+.venv/
+venv/
+.idea/
+.vscode/
+.DS_Store
+coverage/
+.pytest_cache/
+node_modules/
+*.swp
+*.swo

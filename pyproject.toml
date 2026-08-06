@@ -1,0 +1,5 @@
+[project]
+name = "ai-workbench"
+version = "0.1.0"
+description = "Structured workspace for AI tooling"
+requires-python = ">=3.10"
