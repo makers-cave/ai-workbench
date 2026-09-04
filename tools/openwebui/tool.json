@@ -1,0 +1,7 @@
+{
+  "name": "Open WebUI",
+  "description": "Chat UI for local and remote model backends.",
+  "kind": "docker",
+  "url": "http://127.0.0.1:3000",
+  "icon": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/open-webui.png"
+}

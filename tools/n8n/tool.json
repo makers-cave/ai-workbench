@@ -1,0 +1,8 @@
+{
+  "name": "n8n",
+  "description": "Workflow automation tool with AI agent capabilities.",
+  "kind": "docker",
+  "url": "http://127.0.0.1:5678",
+  "icon": "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/n8n.svg",
+  "notes": "First run may take a moment. Default port: 5678."
+}

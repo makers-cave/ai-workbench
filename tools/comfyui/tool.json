@@ -1,0 +1,8 @@
+{
+  "name": "ComfyUI",
+  "description": "Node-based generative image/video workflow UI.",
+  "kind": "docker",
+  "url": "http://127.0.0.1:8188",
+  "icon": "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/comfyui.png",
+  "notes": "Ryzen AI Max+ 395 ROCm support is hardware/image dependent; verify logs after enabling."
+}

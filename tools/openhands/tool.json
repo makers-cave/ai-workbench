@@ -1,0 +1,8 @@
+{
+  "name": "OpenHands",
+  "description": "Local AI software-development agent with Docker sandboxing.",
+  "kind": "docker",
+  "url": "http://127.0.0.1:3001",
+  "icon": "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/openhands.svg",
+  "notes": "OpenHands needs access to Docker's socket to create its agent sandbox containers."
+}

@@ -1,0 +1,22 @@
+services:
+  stable-diffusion:
+    image: ghcr.io/abetlen/stable-diffusion-webui-docker:latest
+    container_name: local-ai-stable-diffusion
+    restart: unless-stopped
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render
+    ipc: host
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      HSA_OVERRIDE_GFX_VERSION: ${HSA_OVERRIDE_GFX_VERSION:-11.5.1}
+      HIP_VISIBLE_DEVICES: ${HIP_VISIBLE_DEVICES:-0}
+      COMMANDLINE_ARGS: "--api --listen"
+    ports:
+      - "${SD_PORT:-7860}:7860"
+    volumes:
+      - ../../data/stable-diffusion:/app/outputs

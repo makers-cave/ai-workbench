@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Workbench</title>
+<link rel="stylesheet" href="/css/style.css">
+<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+<main>
+<h1>AI Workbench</h1>
+<div class="muted">Dockerized local AI tools · AMD Ryzen AI Max+ 395</div>
+<div id="grid" class="grid"></div>
+</main>
+<aside id="sidebar" class="sidebar" aria-hidden="true">
+  <div class="sidebar-head">
+    <div class="sidebar-title"><span class="sidebar-dot" id="log-dot"></span>Logs</div>
+    <button id="log-close" class="icon-btn" title="Close log panel" aria-label="Close log panel">&times;</button>
+  </div>
+  <pre id="log" class="log-content">Ready.</pre>
+</aside>
+<button id="log-toggle" class="log-toggle" title="Open log panel" aria-label="Open log panel">Logs</button>
+<footer id="footer">
+  <div class="stat-card">
+    <div class="stat-label">CPU</div>
+    <canvas id="g-cpu" width="120" height="32"></canvas>
+    <div class="stat-val" id="v-cpu">0%</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">RAM</div>
+    <canvas id="g-ram" width="120" height="32"></canvas>
+    <div class="stat-val" id="v-ram">0%</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">GPU</div>
+    <canvas id="g-gpu" width="120" height="32"></canvas>
+    <div class="stat-val" id="v-gpu">0%</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">VRAM</div>
+    <canvas id="g-vram" width="120" height="32"></canvas>
+    <div class="stat-val" id="v-vram">0 / 0 GB</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Temp</div>
+    <div class="stat-val temp" id="v-temp">0°C</div>
+  </div>
+</footer>
+<script src="/js/app.js"></script>
+</body></html>

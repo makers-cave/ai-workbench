@@ -1,0 +1,16 @@
+services:
+  openhands:
+    image: docker.openhands.dev/openhands/openhands:1.6
+    container_name: local-ai-openhands
+    restart: unless-stopped
+    ports:
+      - "${OPENHANDS_PORT:-3001}:3000"
+    environment:
+      AGENT_SERVER_IMAGE_REPOSITORY: ghcr.io/openhands/agent-server
+      AGENT_SERVER_IMAGE_TAG: 1.15.0-python
+      LOG_ALL_EVENTS: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../../data/openhands:/root/.openhands
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -1,0 +1,27 @@
+services:
+  comfyui:
+    # Placeholder image: replace with the ComfyUI ROCm image you validate for your setup.
+    # The official AMD docs currently document prebuilt ROCm images primarily for Instinct GPUs.
+    image: ignatberesnev/comfyui-gfx1151:v0.2
+    container_name: local-ai-comfyui
+    restart: unless-stopped
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    ipc: host
+    environment:
+      TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL: 1
+      HSA_OVERRIDE_GFX_VERSION: ${HSA_OVERRIDE_GFX_VERSION:-11.5.1}
+      HIP_VISIBLE_DEVICES: ${HIP_VISIBLE_DEVICES:-0}
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    volumes:
+      - ../../data/comfyui:/opt/ComfyUI
+    group_add:
+      - video
+      - render
+
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined

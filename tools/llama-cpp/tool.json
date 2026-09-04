@@ -1,0 +1,8 @@
+{
+  "name": "llama.cpp",
+  "description": "High-performance local GGUF inference server.",
+  "kind": "docker",
+  "url": "http://127.0.0.1:8001",
+  "icon": "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/llama-cpp.svg",
+  "notes": "Place a GGUF model at data/llama-cpp/models/model.gguf before enabling."
+}

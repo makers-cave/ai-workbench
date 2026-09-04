@@ -1,0 +1,11 @@
+services:
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: local-ai-openwebui
+    restart: unless-stopped
+    ports:
+      - "${OPENWEBUI_PORT:-3000}:8080"
+    volumes:
+      - ../../data/openwebui:/app/backend/data
+    environment:
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-change-me-local-ai-hub}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Local AI Hub dashboard
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/local-ai-hub
+ExecStart=%h/local-ai-hub/run.sh
+Restart=on-failure
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

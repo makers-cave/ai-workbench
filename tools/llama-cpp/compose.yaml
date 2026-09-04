@@ -1,0 +1,27 @@
+services:
+  llama-cpp:
+    image: maharajah/llama-cpp:rocm-latest
+    container_name: local-ai-llama-cpp
+    restart: unless-stopped
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+    ipc: host
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      HSA_OVERRIDE_GFX_VERSION: ${HSA_OVERRIDE_GFX_VERSION:-11.5.1}
+      HIP_VISIBLE_DEVICES: ${HIP_VISIBLE_DEVICES:-0}
+    ports:
+      - "${LLAMA_PORT:-8001}:8001"
+    volumes:
+      - ../../data/llama-cpp/models:/models
+    command:
+      - "-m"
+      - "/models/Qwen3.8-27B-UD-Q8_K_XL.gguf"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8001"
