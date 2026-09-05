@@ -26,9 +26,9 @@ same `AUTOMATIC1111` service from scratch on top of an **official AMD ROCm PyTor
 ```
 
 First build pulls the ~23 GB ROCm base image and installs the WebUI: expect **20-60 minutes**.
-Subsequent starts take seconds. Because the build far exceeds the dashboard's 180 s timeout,
-run `enable.sh` from a terminal the first time (or from the dashboard and let it finish in the
-background if the process isn't killed).
+Subsequent starts take seconds. The dashboard now runs the build in the background and shows
+progress — you can click Enable from the dashboard and watch the build progress in the log sidebar.
+You can also run `enable.sh` directly from a terminal if you prefer.
 
 Open http://127.0.0.1:7860 after the container is `running`.
 
@@ -67,7 +67,7 @@ so model downloads, embeddings, extensions and settings survive container restar
 `CLI_ARGS` in `compose.yaml` controls the WebUI. Current default:
 
 ```text
---allow-code --medvram --opt-sdp-no-mem-attention --enable-insecure-extension-access --api --skip-torch-cuda-test
+--allow-code --medvram --opt-sdp-no-mem-attention --enable-insecure-extension-access --api --skip-torch-cuda-test --skip-load-model-at-start
 ```
 
 Common tweaks for this APU:
@@ -75,6 +75,14 @@ Common tweaks for this APU:
 - `--medvram` → drop it if you want maximum quality at 512x512 (the iGPU shares system RAM).
 - `--no-half-vae` + `--no-half` → add only if you see black/NaN outputs on a specific model.
 - Remove `--skip-torch-cuda-test` once you've confirmed the WebUI reports the GPU.
+- `--skip-load-model-at-start` is set so the gradio UI comes up even when
+  the background model-load thread crashes. **On this APU today** (ROCm
+  6.3.4 + PyTorch 2.4 + gfx1151), `torch.tensor.to("cuda")` segfaults
+  inside `apply_alpha_schedule_override()` as soon as the model is moved
+  onto the iGPU. Removing `--skip-load-model-at-start` causes the WebUI
+  process to die right after the gradio server starts, so the URL
+  returns "empty page". Leave it on until the ROCm runtime / PyTorch
+  combo for Strix Halo is fixed; once model loading works, drop it.
 
 ### Doesn't work with ROCm
 
@@ -89,7 +97,7 @@ repository**. As a result the upstream Dockerfile — and any fresh AUTOMATIC111
 install using its default URL — currently **fails to build** with
 `remote: Repository not found`.
 
-This compose file works around it in two places:
+This compose file works around it in three places:
 
 1. `Dockerfile` (build stage) clones the canonical, still-alive original
    **`CompVis/stable-diffusion`** at commit `21f890f...` into the path the WebUI
@@ -99,6 +107,33 @@ This compose file works around it in two places:
 2. `ENV STABLE_DIFFUSION_REPO` / `STABLE_DIFFUSION_COMMIT_HASH` — these are the
    official overrides the WebUI's `launch_utils.py` reads, keeping its startup
    git-hash check consistent with what was baked into the image.
+3. **Rebuilding `ldm.modules.midas` from upstream `isl-org/MiDaS@v3_1`.**
+   CompVis/stable-diffusion doesn't ship the `ldm.modules.midas.*` files the
+   WebUI imports (those lived in the deleted Stability-AI repo). The previous
+   Dockerfile tried to fetch them per-file with `curl -sL` from
+   `Stability-AI/generative-models/.../midas/*.py` — but **all of those URLs
+   404 today**, and `curl -sL` wrote the literal body `404: Not Found` into
+   every destination file without raising. The build appeared to succeed but
+   `webui.py` then crashed with `ModuleNotFoundError: No module named 'ldm.data.util'`
+   (or `'ldm.modules.midas'`) at startup. We now:
+   - `git clone --depth=1 --branch v3_1 https://github.com/isl-org/MiDaS.git`
+     (the version Stability AI originally forked from),
+   - copy `midas/` into the ldm tree, rewrite its top-level `from midas.X`
+     imports to `from ldm.modules.midas.X`, and add the missing
+     `__init__.py` files,
+   - ship a small `ldm.modules.midas.api` wrapper that exposes the
+     `ISL_PATHS` / `load_model(model_type)` interface the WebUI's
+     `enable_midas_autodownload()` hook monkey-patches, delegating to
+     `torch.hub.load("intel-isl/MiDaS", ...)` for weights,
+   - ship `ldm/data/util.py` with the `AddMiDaS` helper used by depth2img.
+4. **Stub class `LatentDepth2ImageDiffusion` in `ldm/models/diffusion/ddpm.py`.**
+   `modules/processing.py` does
+   `from ldm.models.diffusion.ddpm import LatentDepth2ImageDiffusion` for a
+   single `isinstance()` check that gates depth2img. CompVis/stable-diffusion
+   doesn't ship that class. We append an empty `class LatentDepth2ImageDiffusion(LatentDiffusion): pass`
+   so the import succeeds. **depth2img itself is not functional** (it requires
+   the SD2-depth checkpoint family, which we don't ship), but txt2img, img2img,
+   inpainting, and the rest of the WebUI work normally.
 
 Also note: upstream `clone.sh` strips `.git` from each cloned repo. We keep it —
 without it, `git rev-parse HEAD` inside a repo directory resolves to the parent

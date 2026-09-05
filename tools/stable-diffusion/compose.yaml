@@ -26,9 +26,6 @@ services:
     devices:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri
-    group_add:
-      - video
-      - render
     ipc: host
     security_opt:
       - seccomp:unconfined
@@ -37,7 +34,13 @@ services:
       HIP_VISIBLE_DEVICES: ${HIP_VISIBLE_DEVICES:-0}
       # xformers has no ROCm wheels: use PyTorch scaled-dot-product attention
       # without the memory-efficient backend (most reliable on RDNA/Radeon).
-      CLI_ARGS: "--allow-code --medvram --opt-sdp-no-mem-attention --enable-insecure-extension-access --api --skip-torch-cuda-test"
+      # --skip-load-model-at-start keeps the gradio UI up even if the
+      # background model-load thread crashes (which currently happens for
+      # ROCm/PyTorch on Strix Halo: torch.tensor.to('cuda') segfaults in
+      # apply_alpha_schedule_override). The user can still hit "Refresh
+      # models" / "Load" in the UI; if that also crashes, remove this flag
+      # once the ROCm runtime is upgraded or gfx1151 gets full support.
+      CLI_ARGS: "--allow-code --medvram --opt-sdp-no-mem-attention --enable-insecure-extension-access --api --skip-torch-cuda-test --skip-load-model-at-start"
     ports:
       - "${SD_PORT:-7860}:7860"
     volumes:

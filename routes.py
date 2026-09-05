@@ -84,7 +84,7 @@ class SystemStats:
 _stats = SystemStats()
 
 
-def make_handler(dashboard_data_fn, tools_fn, run_script_fn):
+def make_handler(dashboard_data_fn, tools_fn, run_script_fn, get_background_task_fn):
     """Return a Handler class that uses the provided callables."""
     class Handler(BaseHTTPRequestHandler):
         def send_json(self, obj, code=200):
@@ -123,6 +123,14 @@ def make_handler(dashboard_data_fn, tools_fn, run_script_fn):
                 except Exception:
                     return
             parts=path.strip("/").split("/")
+            # Handle /api/tools/{id}/task/{task_id} for background task status
+            if len(parts)==5 and parts[0]=="api" and parts[1]=="tools" and parts[3]=="task":
+                task_info = get_background_task_fn(parts[4])
+                if task_info:
+                    self.send_json(task_info)
+                else:
+                    self.send_json({"error": "Task not found"}, 404)
+                return
             if len(parts)==4 and parts[0]=="api" and parts[1]=="tools" and parts[3]=="icon":
                 tool_dir=TOOLS/parts[2]
                 tool_json=tool_dir/"tool.json"

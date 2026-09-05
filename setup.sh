@@ -8,10 +8,10 @@ fi
 
 echo "==> Installing host prerequisites"
 if command -v pacman >/dev/null 2>&1; then
-  sudo pacman -Syu --needed docker docker-compose curl
+  sudo pacman -Syu --needed docker docker-compose docker-buildx curl
 else
   echo "This setup script currently targets Arch/CachyOS."
-  echo "Install Docker Engine, Docker Compose v2, curl, and Python 3 manually."
+  echo "Install Docker Engine, Docker Compose v2, docker-buildx, curl, and Python 3 manually."
   exit 1
 fi
 

@@ -3,12 +3,13 @@ async function load(){
  document.getElementById('grid').innerHTML=data.map(t=>{
    const s=t.status.state, url=t.url||'';
    const open=(s==='running' && url)?`<a class="btn" href="${url}" target="_blank" rel="noopener">Open</a>`:'';
+   const isStarting = s==='starting' || (t.background_task && t.background_task.status === 'running');
    const toggle=t.kind==='docker'
-      ? `<button onclick="act('${t._id}','${s==='running'?'disable':'enable'}')">${s==='running'?'Disable':'Enable'}</button>`
-      : '';
+    ? `<button onclick="act('${t._id}','${s==='running'?'disable':'enable'}')" ${isStarting?'disabled':''}>${isStarting?'Building...':(s==='running'?'Disable':'Enable')}</button>`
+    : '';
    const iconUrl=t.icon?(t.icon.startsWith('http')?t.icon:`/api/tools/${t._id}/icon`):'';
    return `<section class="card"><div class="row">${iconUrl?`<img class="icon" src="${iconUrl}" alt="">`:''}<h2>${t.name}</h2><span class="badge ${s}">${s}</span></div>
-   <p class="muted">${t.description||''}</p><div>${t.notes||''}</div>
+   <p class="muted">${t.description||''}</p><div>${t.notes||''}</div>${isStarting ? `<div style="color:#ff8c42;font-size:13px;margin-top:8px;">⏳ Build in progress (${t.background_task ? t.background_task.duration : '?'}s)</div>` : ''}
    <div class="actions">${toggle}${open}</div></section>`;
  }).join('');
 }
@@ -43,7 +44,14 @@ async function act(id, action){
  try{
   const r=await fetch(`/api/tools/${id}/${action}`,{method:'POST'});
   const x=await r.json();
-  logEl.textContent=x.output||x.error||'Done';
+  if(x.ok && x.output && x.output.includes("Task ID:")){
+   // Background task started - extract task ID and poll for status
+   const taskId = x.output.split("Task ID:")[1].trim();
+   logEl.textContent=`${action} started. Building... (this may take 20-60 minutes for first build)`;
+   await pollTaskStatus(id, taskId, action);
+  }else{
+   logEl.textContent=x.output||x.error||'Done';
+  }
  }catch(e){
   logEl.textContent=`Error: ${e.message}`;
  }finally{
@@ -54,6 +62,56 @@ async function act(id, action){
    setTimeout(()=>{ if(autoCollapse && activeTasks===0) collapseSidebar(); },800);
   }
  }
+}
+
+async function pollTaskStatus(toolId, taskId, action){
+ return new Promise((resolve, reject) => {
+  const pollInterval = 5000; // Poll every 5 seconds
+  const maxDuration = 3600000; // 1 hour max
+  const startTime = Date.now();
+  
+  const poll = async () => {
+   try {
+    const r = await fetch(`/api/tools/${toolId}/task/${taskId}`);
+    const task = await r.json();
+    
+    if(task.error){
+     logEl.textContent=`Error: ${task.error}`;
+     reject(new Error(task.error));
+     return;
+    }
+    
+    const duration = Math.round(task.duration);
+    logEl.textContent=`${action} ${toolId}: ${task.status} (${duration}s)`;
+    
+    if(task.status === 'completed'){
+     logEl.textContent=`${action} completed successfully!`;
+     resolve();
+     return;
+    }else if(task.status === 'failed'){
+     logEl.textContent=`${action} failed: ${task.output || 'Unknown error'}`;
+     reject(new Error(task.output || 'Operation failed'));
+     return;
+    }
+    
+    // Check if we've exceeded max duration
+    if(Date.now() - startTime > maxDuration){
+     logEl.textContent=`${action} timed out after 1 hour`;
+     reject(new Error('Operation timed out'));
+     return;
+    }
+    
+    // Continue polling
+    setTimeout(poll, pollInterval);
+   }catch(e){
+    logEl.textContent=`Error checking status: ${e.message}`;
+    reject(e);
+   }
+  };
+  
+  // Start polling
+  setTimeout(poll, pollInterval);
+ });
 }
 load(); setInterval(load,5000);
 
