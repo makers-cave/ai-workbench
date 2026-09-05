@@ -1,0 +1,5 @@
+.git
+data
+output
+*.md
+__pycache__

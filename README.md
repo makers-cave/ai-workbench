@@ -22,6 +22,7 @@ A Docker Compose-based local AI launcher/dashboard for CachyOS + AMD Ryzen AI Ma
 | Open WebUI | 3000 | Docker | Recommended front-end for local models |
 | InvokeAI | 9090 | Docker | ROCm image |
 | ComfyUI | 8188 | Docker | Ryzen AI Max+ 395 ROCm settings are experimental |
+| Stable Diffusion | 7860 | Docker | AUTOMATIC1111 WebUI; built locally on ROCm for the Radeon 8060S |
 | OpenHands | 3001 | Docker | Requires Docker socket for its agent sandbox |
 | Cursor | — | External | Linux desktop AppImage; not a web/Docker service |
 

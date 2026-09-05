@@ -25,7 +25,7 @@ if ! id -nG "$USER" | tr ' ' '\n' | grep -qx docker; then
 fi
 
 echo "==> Creating data directories"
-mkdir -p data/{llama-cpp/models,llama-cpp/cache,openwebui,invokeai,comfyui,openhands}
+mkdir -p data/{llama-cpp/models,llama-cpp/cache,openwebui,invokeai,comfyui,stable-diffusion,openhands}
 
 if [[ ! -f config.env ]]; then
   cp config.env.example config.env

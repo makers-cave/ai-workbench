@@ -1,8 +1,28 @@
+# AUTOMATIC1111 Stable Diffusion WebUI, AMD ROCm edition.
+#
+# This compose file is adapted from AbdBarho/stable-diffusion-webui-docker for the
+# machine's AMD GPU (Radeon 8060S / Ryzen AI MAX+ 395, Strix Halo gfx1151).
+# The upstream file targets NVIDIA (CUDA images + nvidia device driver); here the
+# image is BUILT from the local Dockerfile on top of an official ROCm PyTorch base.
+#
+# AMD/ROCm container requirements (same as the other tools in this repo):
+#   * /dev/kfd and /dev/dri are passed through to the container
+#   * HSA_OVERRIDE_GFX_VERSION + HIP_VISIBLE_DEVICES come from config.env
+#
+# Usage:
+#   docker compose --profile download up --build   # optional: seed SD1.5 models (~5GB)
+#   docker compose build                           # or just let enable.sh do it
+#   docker compose up -d                           # UI on http://127.0.0.1:7860
+
 services:
   stable-diffusion:
-    image: ghcr.io/abetlen/stable-diffusion-webui-docker:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: local-ai/stable-diffusion-webui:rocm
     container_name: local-ai-stable-diffusion
     restart: unless-stopped
+    # AMD ROCm/GPU passthrough (Ryzen AI Max+ 395 / Radeon 8060S)
     devices:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri
@@ -15,8 +35,24 @@ services:
     environment:
       HSA_OVERRIDE_GFX_VERSION: ${HSA_OVERRIDE_GFX_VERSION:-11.5.1}
       HIP_VISIBLE_DEVICES: ${HIP_VISIBLE_DEVICES:-0}
-      COMMANDLINE_ARGS: "--api --listen"
+      # xformers has no ROCm wheels: use PyTorch scaled-dot-product attention
+      # without the memory-efficient backend (most reliable on RDNA/Radeon).
+      CLI_ARGS: "--allow-code --medvram --opt-sdp-no-mem-attention --enable-insecure-extension-access --api --skip-torch-cuda-test"
     ports:
       - "${SD_PORT:-7860}:7860"
     volumes:
-      - ../../data/stable-diffusion:/app/outputs
+      # persistent data (models, embeddings, config) -> /data (see entrypoint.sh)
+      - ../../data/stable-diffusion:/data
+      # generated images -> data/stable-diffusion/output
+      - ../../data/stable-diffusion/output:/output
+    stop_signal: SIGKILL
+    tty: true
+
+  # Optional one-shot model downloader (upstream service): seeds SD1.5, inpainting,
+  # VAE and face/esrgan models into data/stable-diffusion/models.
+  download:
+    build: ./download/
+    profiles: ["download"]
+    container_name: local-ai-stable-diffusion-download
+    volumes:
+      - ../../data/stable-diffusion:/data

@@ -1,8 +1,8 @@
 {
   "name": "Stable Diffusion",
-  "description": "AI image generation with Stable Diffusion WebUI.",
+  "description": "AI image generation with AUTOMATIC1111 Stable Diffusion WebUI (ROCm).",
   "kind": "docker",
   "url": "http://127.0.0.1:7860",
-  "icon": "https://cdn.jsdelivr.net/gh/selfhst/icons/svg/stable-diffusion.svg",
-  "notes": "Place models in data/stable-diffusion/models. First run downloads base model."
+  "icon": "https://stablediffusionweb.com/images/logo.png",
+  "notes": "Built locally from the ROCm Dockerfile, not from a published image. First enable takes 20-60 min; run ./tools/stable-diffusion/enable.sh in a terminal if the dashboard times out. Models go in data/stable-diffusion/models/Stable-diffusion."
 }
