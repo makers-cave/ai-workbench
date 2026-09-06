@@ -8,19 +8,132 @@
 <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
 </head>
 <body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo-placeholder" aria-label="Logo placeholder" title="Logo placeholder"></div>
+    <div class="brand-text">
+      <div class="brand-title">AI Workbench</div>
+      <div class="brand-sub muted">Dockerized local AI tools · AMD Ryzen AI Max+ 395</div>
+    </div>
+  </div>
+  <nav class="topbar-actions" aria-label="Header actions">
+    <button id="log-toggle" class="icon-btn header-icon" title="Open log panel" aria-label="Open log panel">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/><path d="M9 9h2"/></svg>
+      <span class="sidebar-dot" id="log-dot"></span>
+    </button>
+    <button id="settings-toggle" class="icon-btn header-icon" title="Open settings" aria-label="Open settings">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </nav>
+</header>
 <main>
-<h1>AI Workbench</h1>
-<div class="muted">Dockerized local AI tools · AMD Ryzen AI Max+ 395</div>
 <div id="grid" class="grid"></div>
 </main>
 <aside id="sidebar" class="sidebar" aria-hidden="true">
   <div class="sidebar-head">
-    <div class="sidebar-title"><span class="sidebar-dot" id="log-dot"></span>Logs</div>
+    <div class="sidebar-title"><span class="sidebar-dot" id="log-dot-header"></span>Logs</div>
     <button id="log-close" class="icon-btn" title="Close log panel" aria-label="Close log panel">&times;</button>
   </div>
   <pre id="log" class="log-content">Ready.</pre>
 </aside>
-<button id="log-toggle" class="log-toggle" title="Open log panel" aria-label="Open log panel">Logs</button>
+<div id="settings-overlay" class="settings-overlay" aria-hidden="true" role="dialog" aria-labelledby="settings-title">
+  <div class="settings-card settings-card--wide">
+    <div class="settings-head">
+      <h2 id="settings-title">Settings</h2>
+      <button id="settings-close" class="icon-btn" title="Close settings" aria-label="Close settings">&times;</button>
+    </div>
+    <div class="settings-layout">
+      <nav class="settings-tabs" role="tablist" aria-label="Settings sections">
+        <button id="tab-general" class="settings-tab" role="tab" aria-selected="true" aria-controls="pane-general" data-tab="general">General</button>
+        <button id="tab-tools" class="settings-tab" role="tab" aria-selected="false" aria-controls="pane-tools" data-tab="tools" tabindex="-1">Tools</button>
+      </nav>
+      <div class="settings-panes">
+        <section id="pane-general" class="settings-pane" role="tabpanel" aria-labelledby="tab-general">
+          <section class="settings-section">
+            <h3>Appearance</h3>
+            <label class="settings-row">
+              <span class="settings-label">Theme</span>
+              <select id="setting-theme">
+                <option value="dark">Dark (default)</option>
+                <option value="light">Light</option>
+              </select>
+            </label>
+          </section>
+          <section class="settings-section">
+            <h3>Dashboard</h3>
+            <label class="settings-row">
+              <span class="settings-label">Hub host</span>
+              <input id="setting-host" type="text" placeholder="0.0.0.0">
+            </label>
+            <label class="settings-row">
+              <span class="settings-label">Hub port</span>
+              <input id="setting-port" type="number" min="1" max="65535" placeholder="80">
+            </label>
+            <label class="settings-row">
+              <span class="settings-label">Auto-refresh tools (s)</span>
+              <input id="setting-refresh" type="number" min="1" max="600" placeholder="5">
+            </label>
+          </section>
+          <section class="settings-section">
+            <h3>About</h3>
+            <p class="muted">AI Workbench dashboard. Configure individual tool ports, paths, and GPU overrides via <code>config.env</code> on the host. The settings on this screen are stored in <code>data/settings.json</code> on the server.</p>
+          </section>
+        </section>
+
+        <section id="pane-tools" class="settings-pane" role="tabpanel" aria-labelledby="tab-tools" hidden>
+          <section class="settings-section">
+            <h3>Add tool</h3>
+            <div class="tools-add">
+              <div class="tools-add-row">
+                <label class="settings-label" for="tool-install-id">Tool id</label>
+                <input id="tool-install-id" type="text" placeholder="my-tool" pattern="[a-z0-9][a-z0-9_-]{0,39}" maxlength="40" autocomplete="off">
+              </div>
+              <div class="tools-add-row">
+                <label class="settings-label" for="tool-install-url">Zip URL</label>
+                <input id="tool-install-url" type="url" placeholder="https://example.com/my-tool.zip" autocomplete="off">
+              </div>
+              <div class="tools-add-actions">
+                <button id="tool-install-btn" class="btn-primary" type="button">Install from URL</button>
+              </div>
+            </div>
+            <div class="tools-add">
+              <div class="tools-add-row">
+                <label class="settings-label" for="tool-upload-id">Tool id</label>
+                <input id="tool-upload-id" type="text" placeholder="my-tool" pattern="[a-z0-9][a-z0-9_-]{0,39}" maxlength="40" autocomplete="off">
+              </div>
+              <div class="tools-add-row">
+                <label class="settings-label" for="tool-upload-mode">Mode</label>
+                <select id="tool-upload-mode">
+                  <option value="new">New folder (fail if exists)</option>
+                  <option value="replace">Replace existing contents</option>
+                </select>
+              </div>
+              <div class="tools-add-actions">
+                <input id="tool-upload-file" type="file" accept=".zip,application/zip" hidden>
+                <button id="tool-upload-btn" class="btn-secondary" type="button">Upload zip…</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <div class="tools-list-head">
+              <h3>Available tools</h3>
+              <button id="tools-refresh" class="btn-secondary btn-small" type="button" title="Reload tool list">Refresh</button>
+            </div>
+            <ul id="tools-list" class="tools-list" aria-live="polite"></ul>
+            <p id="tools-empty" class="muted" hidden>No tools found. Use Add tool to install one from a URL or upload a zip.</p>
+          </section>
+        </section>
+      </div>
+    </div>
+    <div class="settings-foot">
+      <button id="settings-reset" class="btn-secondary">Reset to defaults</button>
+      <span class="settings-foot-spacer"></span>
+      <span id="settings-status" class="muted settings-status" role="status" aria-live="polite"></span>
+      <button id="settings-save" class="btn-primary">Save</button>
+    </div>
+  </div>
+</div>
 <footer id="footer">
   <div class="stat-card">
     <div class="stat-label">CPU</div>
