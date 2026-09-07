@@ -417,20 +417,150 @@ def install_tool_from_url(tool_id, url):
     return _start_task(tool_id, "install", _work)
 
 
-def install_tool_from_upload(tool_id, zip_path, mode):
-    if not TOOL_ID_RE.match(tool_id):
-        raise ValueError("Invalid tool id")
-    if mode not in ("new", "replace"):
-        raise ValueError("mode must be 'new' or 'replace'")
+REQUIRED_TOOL_FILES = ("tool.json", "enable.sh", "disable.sh")
+REQUIRED_TOOL_JSON_KEYS = ("name", "description")
+
+
+def _normalize_mode(mode):
+    """Accept legacy ('new','replace') and current ('overwrite') values."""
+    if mode in ("replace", "overwrite"):
+        return "replace"
+    return "new"
+
+
+def _validate_tool_zip(zip_path):
+    """Validate a tool zip in place. Returns (meta_dict, files_list, warnings_list).
+
+    Raises ValueError on hard validation failures. The zip file must already
+    exist on disk (the caller writes the upload to a temp location first).
+    """
     if not zipfile.is_zipfile(str(zip_path)):
         raise ValueError("Not a valid zip file")
+    with zipfile.ZipFile(str(zip_path)) as zf:
+        names = zf.namelist()
+        # Reject path traversal up-front
+        for n in names:
+            if n.startswith("/") or ".." in Path(n).parts:
+                raise ValueError(f"Unsafe path in zip: {n}")
+        # Normalize to "tool/..." prefix so all entries live in a subdir.
+        # Detect whether the zip already has a single common root dir.
+        root = None
+        tops = []
+        for n in names:
+            if not n or n.endswith("/"):
+                continue
+            top = n.split("/", 1)[0]
+            tops.append(top)
+        common_root = None
+        if tops and len(set(tops)) == 1:
+            common_root = tops[0]
+        # Find their tool.json (either at root or under common root).
+        candidates = [n for n in names if n.endswith("tool.json")]
+        tool_json_entry = None
+        for cand in candidates:
+            parts = Path(cand).parts
+            if common_root and parts and parts[0] == common_root and len(parts) == 2:
+                tool_json_entry = cand
+                break
+            if not common_root and len(parts) == 1:
+                tool_json_entry = cand
+                break
+        if not tool_json_entry:
+            raise ValueError(
+                "Archive is missing tool.json. The archive must contain tool.json at the root or inside a single top-level folder."
+            )
+        # Determine the directory that holds the tool files.
+        tool_dir_in_zip = Path(tool_json_entry).parent  # e.g. '' or 'my-tool'
+        try:
+            raw = zf.read(tool_json_entry)
+        except KeyError as e:
+            raise ValueError(f"Could not read tool.json: {e}")
+        try:
+            meta = json.loads(raw.decode("utf-8"))
+        except Exception as e:
+            raise ValueError(f"tool.json is not valid JSON: {e}")
+        if not isinstance(meta, dict):
+            raise ValueError("tool.json must be a JSON object")
+        # Derive tool id from folder name if present, else from filename.
+        if str(tool_dir_in_zip) == "":
+            derived_id = Path(tool_json_entry).stem
+            derived_id = derived_id if derived_id and derived_id != "tool" else ""
+        else:
+            derived_id = str(tool_dir_in_zip).split("/")[-1]
+        # Required metadata check
+        missing = [k for k in REQUIRED_TOOL_JSON_KEYS if not meta.get(k)]
+        if missing:
+            raise ValueError(
+                "tool.json is missing required metadata: " + ", ".join(missing)
+            )
+        # Check required files exist in the archive (relative to tool_dir_in_zip)
+        prefix = str(tool_dir_in_zip) + "/" if str(tool_dir_in_zip) else ""
+        present = set()
+        for n in names:
+            if not n or n.endswith("/"):
+                continue
+            if prefix:
+                if n.startswith(prefix):
+                    present.add(n[len(prefix):])
+            else:
+                # No prefix: everything is "root level"
+                present.add(n)
+        required_set = set(REQUIRED_TOOL_FILES)
+        missing_files = [f for f in REQUIRED_TOOL_FILES if f not in present]
+        if missing_files:
+            raise ValueError(
+                "Archive is missing required file(s): " + ", ".join(missing_files)
+            )
+        # Build the file list (sorted, deduped, no dirs)
+        file_list = sorted(present)
+        warnings = []
+        if not TOOL_ID_RE.match(derived_id):
+            warnings.append(
+                f"Folder name '{derived_id}' is not a valid tool id (must match [a-z0-9][a-z0-9_-]{{0,39}}); the install will use it anyway if the user confirms."
+            )
+        # Optional: recommend compose.yaml exists for docker tools
+        if str(meta.get("kind", "docker")).lower() == "docker" and "compose.yaml" not in present:
+            warnings.append("No compose.yaml was found; the tool cannot be started via Docker compose without it.")
+        out = dict(meta)
+        out["id"] = derived_id
+        out["files"] = file_list
+        out["warnings"] = warnings
+        out["valid"] = True
+        # Stash useful folder layout info so the installer can extract cleanly.
+        out["_tool_dir"] = str(tool_dir_in_zip)
+        return out
+
+
+def preview_tool_from_upload(zip_path):
+    """Validate the uploaded zip and return its metadata without installing it."""
+    meta = _validate_tool_zip(zip_path)
+    # Strip the underscore-prefixed installer hint from the response payload.
+    safe = {k: v for k, v in meta.items() if not k.startswith("_")}
+    return safe
+
+
+def install_tool_from_upload(tool_id, zip_path, mode):
+    # Re-validate to make sure the archive still meets requirements and to
+    # recover the folder layout hint. If the supplied tool_id is empty, derive
+    # it from the archive folder structure.
+    meta = _validate_tool_zip(zip_path)
+    derived_id = meta.get("id", "")
+    if not tool_id:
+        tool_id = derived_id
+    if not TOOL_ID_RE.match(tool_id):
+        raise ValueError("Invalid tool id")
+    norm_mode = _normalize_mode(mode)
+    if norm_mode not in ("new", "replace"):
+        raise ValueError("mode must be 'new' or 'replace'")
     target = TOOLS / tool_id
     if target.exists():
-        if mode != "replace":
-            raise ValueError(f"Tool '{tool_id}' already exists. Use replace mode to overwrite.")
+        if norm_mode != "replace":
+            raise ValueError(f"Tool '{tool_id}' already exists. Confirm overwrite to replace it.")
     else:
-        if mode == "replace":
+        if norm_mode == "replace":
             raise ValueError(f"Tool '{tool_id}' does not exist; use mode 'new' to create it.")
+    tool_dir_in_zip = meta.get("_tool_dir", tool_id)
+    use_prefix = bool(tool_dir_in_zip)
 
     def _work():
         if target.exists():
@@ -445,8 +575,41 @@ def install_tool_from_upload(tool_id, zip_path, mode):
                         pass
         else:
             target.mkdir(parents=True, exist_ok=False)
-        _safe_extract_zip(zip_path, target)
-        return f"Uploaded zip into '{tool_id}' (mode={mode})"
+        # Extract. If the archive uses a single common folder, strip that prefix.
+        with zipfile.ZipFile(str(zip_path)) as zf:
+            for member in zf.infolist():
+                name = member.filename
+                if name.startswith("/") or ".." in Path(name).parts:
+                    raise ValueError(f"Unsafe path in zip: {name}")
+                rel = name
+                if use_prefix:
+                    if rel == tool_dir_in_zip + "/":
+                        continue
+                    if rel.startswith(tool_dir_in_zip + "/"):
+                        rel = rel[len(tool_dir_in_zip) + 1:]
+                    else:
+                        # Entry lives outside the tool folder; skip it.
+                        continue
+                if not rel:
+                    continue
+                target_path = (target / rel).resolve()
+                if not str(target_path).startswith(str(target.resolve()) + os.sep) and target_path != target.resolve():
+                    raise ValueError(f"Unsafe path in zip: {name}")
+                if member.is_dir():
+                    target_path.mkdir(parents=True, exist_ok=True)
+                else:
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(member) as src, open(target_path, "wb") as out:
+                        shutil.copyfileobj(src, out)
+        # Make sure shell scripts are executable.
+        for fname in ("enable.sh", "disable.sh"):
+            p = target / fname
+            if p.exists():
+                try:
+                    p.chmod(0o755)
+                except Exception:
+                    pass
+        return f"Installed '{tool_id}' from uploaded zip (mode={norm_mode})"
 
     return _start_task(tool_id, "upload", _work)
 
@@ -500,6 +663,7 @@ Handler = make_handler(
     settings_tools=settings_tools,
     install_tool_from_url=install_tool_from_url,
     install_tool_from_upload=install_tool_from_upload,
+    preview_tool_from_upload=preview_tool_from_upload,
     delete_tool=delete_tool,
     UPLOAD_MAX_BYTES=UPLOAD_MAX_BYTES,
 )

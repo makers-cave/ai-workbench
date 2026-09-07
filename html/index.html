@@ -10,7 +10,7 @@
 <body>
 <header class="topbar">
   <div class="brand">
-    <div class="logo-placeholder" aria-label="Logo placeholder" title="Logo placeholder"></div>
+    <img class="brand-logo" src="/logo.png" alt="AI Workbench logo">
     <div class="brand-text">
       <div class="brand-title">AI Workbench</div>
       <div class="brand-sub muted">Dockerized local AI tools · AMD Ryzen AI Max+ 395</div>
@@ -84,33 +84,42 @@
           <section class="settings-section">
             <h3>Add tool</h3>
             <div class="tools-add">
-              <div class="tools-add-row">
-                <label class="settings-label" for="tool-install-id">Tool id</label>
-                <input id="tool-install-id" type="text" placeholder="my-tool" pattern="[a-z0-9][a-z0-9_-]{0,39}" maxlength="40" autocomplete="off">
-              </div>
-              <div class="tools-add-row">
-                <label class="settings-label" for="tool-install-url">Zip URL</label>
-                <input id="tool-install-url" type="url" placeholder="https://example.com/my-tool.zip" autocomplete="off">
-              </div>
+              <p class="muted tools-add-hint">Upload a tool archive (<code>.zip</code>) containing <code>tool.json</code>, <code>enable.sh</code>, and <code>disable.sh</code>. The tool id is taken from <code>tool.json</code>.</p>
               <div class="tools-add-actions">
-                <button id="tool-install-btn" class="btn-primary" type="button">Install from URL</button>
+                <input id="tool-add-file" type="file" accept=".zip,application/zip" hidden>
+                <button id="tool-add-btn" class="btn-primary" type="button">Add Tool</button>
               </div>
+              <div id="tool-add-status" class="tool-add-status muted" hidden></div>
             </div>
-            <div class="tools-add">
-              <div class="tools-add-row">
-                <label class="settings-label" for="tool-upload-id">Tool id</label>
-                <input id="tool-upload-id" type="text" placeholder="my-tool" pattern="[a-z0-9][a-z0-9_-]{0,39}" maxlength="40" autocomplete="off">
+          </section>
+
+          <section id="tool-review-section" class="settings-section" hidden>
+            <h3>Review tool</h3>
+            <div id="tool-review" class="tool-review">
+              <dl class="tool-review-list">
+                <dt>Tool id</dt><dd id="tool-review-id">&mdash;</dd>
+                <dt>Name</dt><dd id="tool-review-name">&mdash;</dd>
+                <dt>Kind</dt><dd id="tool-review-kind">&mdash;</dd>
+                <dt>URL</dt><dd id="tool-review-url">&mdash;</dd>
+                <dt>Description</dt><dd id="tool-review-description">&mdash;</dd>
+                <dt>Icon</dt><dd id="tool-review-icon">&mdash;</dd>
+                <dt>Notes</dt><dd id="tool-review-notes">&mdash;</dd>
+              </dl>
+              <div class="tool-review-files">
+                <h4>Files detected</h4>
+                <ul id="tool-review-files-list"></ul>
               </div>
-              <div class="tools-add-row">
-                <label class="settings-label" for="tool-upload-mode">Mode</label>
-                <select id="tool-upload-mode">
-                  <option value="new">New folder (fail if exists)</option>
-                  <option value="replace">Replace existing contents</option>
-                </select>
+              <div id="tool-review-warnings" class="tool-review-warnings" hidden>
+                <h4>Validation warnings</h4>
+                <ul id="tool-review-warnings-list"></ul>
+              </div>
+              <div id="tool-review-overwrite" class="tool-review-overwrite" hidden>
+                <p><strong>Tool id <code id="tool-review-overwrite-id"></code> already exists.</strong> Overwriting will replace its contents.</p>
               </div>
               <div class="tools-add-actions">
-                <input id="tool-upload-file" type="file" accept=".zip,application/zip" hidden>
-                <button id="tool-upload-btn" class="btn-secondary" type="button">Upload zip…</button>
+                <button id="tool-review-cancel" class="btn-secondary" type="button">Cancel</button>
+                <button id="tool-review-install" class="btn-primary" type="button">Install</button>
+                <button id="tool-review-overwrite-btn" class="btn-danger" type="button" hidden>Overwrite & install</button>
               </div>
             </div>
           </section>
@@ -120,8 +129,9 @@
               <h3>Available tools</h3>
               <button id="tools-refresh" class="btn-secondary btn-small" type="button" title="Reload tool list">Refresh</button>
             </div>
-            <ul id="tools-list" class="tools-list" aria-live="polite"></ul>
-            <p id="tools-empty" class="muted" hidden>No tools found. Use Add tool to install one from a URL or upload a zip.</p>
+            <div id="tools-categories" class="tools-categories" aria-live="polite"></div>
+            <ul id="tools-list" class="tools-list" aria-live="polite" hidden></ul>
+            <p id="tools-empty" class="muted" hidden>No tools found. Use Add tool to install one from a zip archive.</p>
           </section>
         </section>
       </div>

@@ -14,11 +14,14 @@ ROOT = Path(__file__).resolve().parent
 TOOLS = ROOT / "tools"
 DATA = ROOT / "data"
 UPLOADS = DATA / ".uploads"
+REPO = DATA / "repo.json"
+
 STATIC = {
     "/": ("html/index.html", "text/html"),
     "/favicon.ico": ("html/favicon.ico", "image/x-icon"),
     "/css/style.css": ("css/style.css", "text/css"),
     "/js/app.js": ("js/app.js", "application/javascript"),
+    "/logo.png": ("html/logo.png", "image/png"),
 }
 
 GPU_BUSY = Path("/sys/class/drm/card1/device/gpu_busy_percent")
@@ -149,6 +152,7 @@ def make_handler(
     settings_tools=None,
     install_tool_from_url=None,
     install_tool_from_upload=None,
+    preview_tool_from_upload=None,
     delete_tool=None,
     UPLOAD_MAX_BYTES=500 * 1024 * 1024,
 ):
@@ -203,6 +207,18 @@ def make_handler(
                 return
             if path == "/api/settings/tools":
                 self.send_json(settings_tools() if settings_tools else [])
+                return
+            if path == "/api/repo":
+                # Tool storage / catalog. Falls back to {"tools":[]} if the
+                # file is missing or malformed so the dashboard still loads.
+                try:
+                    payload = json.loads(REPO.read_text(encoding="utf-8"))
+                    if not isinstance(payload, dict):
+                        payload = {}
+                    payload.setdefault("tools", [])
+                except Exception:
+                    payload = {"tools": []}
+                self.send_json(payload)
                 return
             if path == "/api/stats":
                 self.send_response(200)
@@ -267,6 +283,57 @@ def make_handler(
                 self.send_json({"ok": True, "output": f"Task ID: {task_id}"})
                 return
 
+            # POST /api/tools/preview  multipart: file -> { valid, id, name, ... }
+            if len(parts) == 3 and parts[0] == "api" and parts[1] == "tools" and parts[2] == "preview":
+                if not preview_tool_from_upload:
+                    self.send_error_json("preview not supported", 500)
+                    return
+                length = int(self.headers.get("Content-Length", "0") or "0")
+                if length <= 0:
+                    self.send_error_json("Empty body", 400)
+                    return
+                if length > UPLOAD_MAX_BYTES + 4096:
+                    self.send_error_json(f"Upload too large (max {UPLOAD_MAX_BYTES} bytes)", 413)
+                    return
+                body = self.rfile.read(length)
+                try:
+                    fields = _parse_multipart(self.headers.get("Content-Type", ""), body, UPLOAD_MAX_BYTES)
+                except ValueError as e:
+                    self.send_error_json(str(e), 400)
+                    return
+                file_payload = None
+                for n, fn, ct, data in fields:
+                    if fn and (n == "file" or n == "file:"):
+                        file_payload = (fn, ct, data)
+                        break
+                if not file_payload:
+                    self.send_error_json("Missing file field", 400)
+                    return
+                _, _, file_bytes = file_payload
+                DATA.mkdir(parents=True, exist_ok=True)
+                UPLOADS.mkdir(parents=True, exist_ok=True)
+                staging = UPLOADS / f"preview-{uuid.uuid4().hex}.zip"
+                staging.write_bytes(file_bytes)
+                try:
+                    try:
+                        meta = preview_tool_from_upload(staging)
+                    except ValueError as e:
+                        self.send_error_json(str(e), 400)
+                        return
+                    except Exception as e:
+                        self.send_error_json(f"Preview failed: {e}", 500)
+                        return
+                    meta = dict(meta)
+                    meta["ok"] = True
+                    self.send_json(meta)
+                finally:
+                    # Preview should not leave files behind.
+                    try:
+                        staging.unlink()
+                    except Exception:
+                        pass
+                return
+
             # POST /api/tools/upload  multipart: id, mode, file
             if len(parts) == 3 and parts[0] == "api" and parts[1] == "tools" and parts[2] == "upload":
                 if not install_tool_from_upload:
@@ -285,14 +352,26 @@ def make_handler(
                 except ValueError as e:
                     self.send_error_json(str(e), 400)
                     return
-                form = {n: v for (n, _, _, v) in fields if not n.startswith("file:")}
-                files = {n: (fn, ct, v) for (n, fn, ct, v) in fields if n.startswith("file:")}
+                def _is_file_field(item):
+                    # A field is a file field when the multipart parser captured a
+                    # non-empty filename (i.e. it had a Content-Disposition with
+                    # filename="..."). The field name itself stays "file" etc.
+                    return bool(item[1])
+
+                form = {}
+                file_payload = None
+                for n, fn, ct, v in fields:
+                    if _is_file_field((n, fn, ct, v)):
+                        if file_payload is None:
+                            file_payload = (fn, ct, v)
+                    else:
+                        form[n] = v
                 tool_id = (form.get("id") or "").decode("utf-8", "replace").strip() if isinstance(form.get("id"), (bytes, bytearray)) else str(form.get("id", "")).strip()
                 mode = (form.get("mode") or b"new").decode("utf-8", "replace").strip() if isinstance(form.get("mode"), (bytes, bytearray)) else str(form.get("mode", "new")).strip()
-                if "file" not in files:
+                if not file_payload:
                     self.send_error_json("Missing file field", 400)
                     return
-                _, _, file_bytes = files["file"]
+                _, _, file_bytes = file_payload
                 DATA.mkdir(parents=True, exist_ok=True)
                 UPLOADS.mkdir(parents=True, exist_ok=True)
                 staging = UPLOADS / f"upload-{uuid.uuid4().hex}.zip"

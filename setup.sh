@@ -34,6 +34,24 @@ fi
 chmod +x run.sh server.py tools/*/enable.sh tools/*/disable.sh
 
 echo
+read -r -p "Install the dashboard as a system startup service? [y/N] " install_service
+if [[ "$install_service" =~ ^[Yy]$ ]]; then
+  service_dir="$HOME/.config/systemd/user"
+  service_path="$service_dir/local-ai-hub.service"
+
+  mkdir -p "$service_dir"
+  sed \
+    -e "s|^WorkingDirectory=.*|WorkingDirectory=$PWD|" \
+    -e "s|^ExecStart=.*|ExecStart=$PWD/run.sh|" \
+    local-ai-hub.service > "$service_path"
+
+  systemctl --user daemon-reload
+  systemctl --user enable --now local-ai-hub.service
+  sudo loginctl enable-linger "$USER"
+  echo "Dashboard service enabled: $service_path"
+fi
+
+echo
 echo "Setup complete."
 echo "If this shell does not yet have Docker-group access, run: newgrp docker"
 echo "Then start the dashboard with: ./run.sh"

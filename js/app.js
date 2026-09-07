@@ -53,21 +53,78 @@ const settingTheme=document.getElementById('setting-theme');
 const settingHost=document.getElementById('setting-host');
 const settingPort=document.getElementById('setting-port');
 const settingRefresh=document.getElementById('setting-refresh');
-const toolInstallId=document.getElementById('tool-install-id');
-const toolInstallUrl=document.getElementById('tool-install-url');
-const toolInstallBtn=document.getElementById('tool-install-btn');
-const toolUploadId=document.getElementById('tool-upload-id');
-const toolUploadMode=document.getElementById('tool-upload-mode');
-const toolUploadBtn=document.getElementById('tool-upload-btn');
-const toolUploadFile=document.getElementById('tool-upload-file');
+const toolAddBtn=document.getElementById('tool-add-btn');
+const toolAddFile=document.getElementById('tool-add-file');
+const toolAddStatus=document.getElementById('tool-add-status');
+const toolReviewSection=document.getElementById('tool-review-section');
+const toolReviewId=document.getElementById('tool-review-id');
+const toolReviewName=document.getElementById('tool-review-name');
+const toolReviewKind=document.getElementById('tool-review-kind');
+const toolReviewUrl=document.getElementById('tool-review-url');
+const toolReviewDescription=document.getElementById('tool-review-description');
+const toolReviewIcon=document.getElementById('tool-review-icon');
+const toolReviewNotes=document.getElementById('tool-review-notes');
+const toolReviewFilesList=document.getElementById('tool-review-files-list');
+const toolReviewWarnings=document.getElementById('tool-review-warnings');
+const toolReviewWarningsList=document.getElementById('tool-review-warnings-list');
+const toolReviewOverwrite=document.getElementById('tool-review-overwrite');
+const toolReviewOverwriteId=document.getElementById('tool-review-overwrite-id');
+const toolReviewCancel=document.getElementById('tool-review-cancel');
+const toolReviewInstall=document.getElementById('tool-review-install');
+const toolReviewOverwriteBtn=document.getElementById('tool-review-overwrite-btn');
 const toolsList=document.getElementById('tools-list');
 const toolsEmpty=document.getElementById('tools-empty');
 const toolsRefresh=document.getElementById('tools-refresh');
+const toolsCategories=document.getElementById('tools-categories');
 
 // localStorage is now only used as a quick theme cache; server is authoritative.
 const LS_THEME_KEY='ai-workbench-theme';
 const DEFAULT_UI={theme:'dark',host:'',port:'',refresh:5};
 const ID_RE=/^[a-z0-9][a-z0-9_-]{0,39}$/;
+
+// HALO STIX tool taxonomy. Order = display order. Tools not in the map fall
+// into the "Other" bucket at the end. AnythingLLM is duplicated in the source
+// taxonomy (AI Chat + Knowledge/RAG); we keep it under Knowledge / RAG as
+// that's the more specific (and accurate) home for it.
+const CATEGORIES=[
+ {id:'ai-runtimes',   name:'AI Runtimes',         icon:'\u{1F9E0}'},
+ {id:'ai-chat',       name:'AI Chat',             icon:'\u{1F4AC}'},
+ {id:'ai-agents',     name:'AI Agents',           icon:'\u{1F916}'},
+ {id:'coding',        name:'Coding',              icon:'\u{1F468}\u{200D}\u{1F4BB}'},
+ {id:'automation',    name:'Automation',          icon:'\u{1F504}'},
+ {id:'knowledge',     name:'Knowledge / RAG',     icon:'\u{1F4DA}'},
+ {id:'image',         name:'Image',               icon:'\u{1F3A8}'},
+ {id:'video',         name:'Video',               icon:'\u{1F3AC}'},
+ {id:'voice',         name:'Voice',               icon:'\u{1F399}'},
+ {id:'audio',         name:'Audio',               icon:'\u{1F3B5}'},
+ {id:'documents',     name:'Documents',           icon:'\u{1F4C4}'},
+ {id:'search',        name:'AI Search',           icon:'\u{1F310}'},
+ {id:'3d',            name:'3D',                  icon:'\u{1F9CA}'},
+ {id:'observability', name:'Observability',       icon:'\u{1F4C8}'},
+ {id:'infra',         name:'Infrastructure',      icon:'\u2699\uFE0F'},
+ {id:'other',         name:'Other',               icon:'\u{1F4E6}'},
+];
+const CATEGORY_BY_ID=Object.fromEntries(CATEGORIES.map(c=>[c.id,c]));
+
+// Each entry: [categoryId, [tool folder ids...]].
+// Folder ids are the tool _id values (e.g. "openwebui", "comfyui").
+// Local fallback map for installed tools that are NOT in data/repo.json.
+// The authoritative category for every tool now lives in data/repo.json
+// (fetched at runtime via /api/repo). This map only acts as a last-resort
+// hint when the catalog is unreachable, so legacy installations still group
+// into the right accordion.
+const FALLBACK_TOOL_CAT={
+ 'llama-cpp':'ai-runtimes','llama.cpp':'ai-runtimes',
+ 'open-webui':'ai-chat','openwebui':'ai-chat','webui':'ai-chat',
+ 'comfyui':'image','invokeai':'image','invoke-ai':'image','stable-diffusion':'image',
+ 'n8n':'automation',
+ 'openhands':'ai-agents',
+};
+function categoryForToolId(id){
+ if(!id) return 'other';
+ return FALLBACK_TOOL_CAT[String(id).toLowerCase()] || 'other';
+}
+
 let serverSettings={added_tools:[],ui:{...DEFAULT_UI}};
 let activeTab='general';
 
@@ -141,7 +198,99 @@ function iconFor(t){
  return `<div class="tool-icon"><span class="placeholder">${escapeHtml(letter)}</span></div>`;
 }
 
+// --- repo catalog (HALO STIX) ---
+// repoTools: array of {id, name, category, url} fetched from /api/repo.
+// Merged with installed tools so the user sees every category, plus a "Get"
+// link for tools not installed yet.
+let repoTools = [];
+let repoById = {};
+
+async function loadRepo(){
+ try {
+  const r = await fetch('/api/repo');
+  if(!r.ok) throw new Error('repo HTTP '+r.status);
+  const j = await r.json();
+  repoTools = Array.isArray(j && j.tools) ? j.tools : [];
+  repoById = {};
+  for(const t of repoTools){
+   if(t && t.id) repoById[String(t.id).toLowerCase()] = t;
+  }
+ } catch(e){
+  repoTools = [];
+  repoById = {};
+ }
+}
+
+function buildMergedTools(installedTools){
+ // Start with installed tools; each will overwrite its repo twin if present.
+ const byId = {};
+ for(const t of (installedTools||[])) byId[String(t._id).toLowerCase()] = Object.assign({installed:true}, t);
+ // Walk the repo; for ids not already installed, synthesize a placeholder row.
+ for(const entry of repoTools){
+  const id = String(entry.id||'').toLowerCase();
+  if(!id || byId[id]) continue;
+  byId[id] = {
+   _id: entry.id,
+   name: entry.name || entry.id,
+   description: 'Not installed. Available in the tools storage.',
+   icon: '',
+   url: entry.url,
+   status: {state:'notinstalled'},
+   added: false,
+   installed: false,
+   repo: entry,
+  };
+ }
+ return Object.values(byId);
+}
+
+const CHEVRON_SVG='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
+
+function renderCategorizedTools(tools){
+ if(!toolsCategories) { toolsList.innerHTML = (tools||[]).map(renderToolRow).join(''); return; }
+ const arr = buildMergedTools(tools);
+ const byCat = Object.fromEntries(CATEGORIES.map(c=>[c.id,[]]));
+ for(const t of arr){
+  // Category preference: repo's category field > fallback id lookup > 'other'.
+  const repoEntry = repoById[String(t._id).toLowerCase()];
+  let cid = (repoEntry && repoEntry.category) || categoryForToolId(t._id);
+  if(!byCat[cid]) cid = 'other';
+  byCat[cid].push(t);
+ }
+ // Always show every category, even if empty, so the taxonomy is discoverable.
+ toolsCategories.innerHTML = CATEGORIES.map(c=>{
+  const items = byCat[c.id];
+  const open = items.length > 0; // auto-open categories that have content
+  const body = items.length
+   ? '<div class="tools-category-body">' + items.map(renderToolRow).join('') + '</div>'
+   : '<div class="tools-category-empty">No tools in this category yet.</div>';
+  return '<details class="tools-category' + (open ? ' open' : '') + '" data-cat="' + escapeHtml(c.id) + (open ? '" open' : '"') + '>'
+   + '<summary><span class="cat-icon" aria-hidden="true">' + c.icon + '</span>'
+   + '<span class="cat-name">' + escapeHtml(c.name) + '</span>'
+   + '<span class="cat-count">' + items.length + '</span>'
+   + '<span class="cat-chevron" aria-hidden="true">' + CHEVRON_SVG + '</span></summary>'
+   + body + '</details>';
+ }).join('');
+}
+
 function renderToolRow(t){
+ // Not-installed repo placeholder: render a compact "Get from storage" row.
+ if(t && t.installed === false){
+  const repo = t.repo || {};
+  const storageUrl = repo.url || t.url || '';
+  const action = storageUrl
+   ? '<a class="btn-primary btn-small" target="_blank" rel="noopener noreferrer" href="'+escapeHtml(storageUrl)+'" data-act="storage-link">Get from storage</a>'
+   : '<span class="muted">no storage URL</span>';
+  return '<li class="tool-row not-installed" data-id="'+escapeHtml(t._id)+'">'
+   + '<div class="tool-icon"><span class="placeholder">'+escapeHtml((t.name||t._id||'?').charAt(0).toUpperCase())+'</span></div>'
+   + '<div class="tool-info">'
+   + '<div class="tool-name">'+escapeHtml(t.name||t._id)+' <span class="tool-status not-installed-tag" title="Not installed">not installed</span></div>'
+   + '<div class="tool-desc" title="'+escapeHtml(t.description||'')+'">'+escapeHtml(t.description||'\u2014')+'</div>'
+   + (repo.category ? '<div class="tool-meta muted">Storage: <code>'+escapeHtml(repo.category)+'</code></div>' : '')
+   + '</div>'
+   + '<div class="tool-actions">'+action+'</div>'
+   + '</li>';
+ }
  const added=t.added!==false; // default to "not added" if server omits the flag
  const bg=added?'':'<span class="tool-status hidden-tag" title="Not on dashboard">not added</span>';
  return `<li class="tool-row ${added?'':'not-added'}" data-id="${escapeHtml(t._id)}">
@@ -177,18 +326,18 @@ function renderDeleteConfirm(row,toolId){
 
 async function loadSettingsPane(){
  try{
-  const [sR,tR]=await Promise.all([fetch('/api/settings'),fetch('/api/settings/tools')]);
+  const [sR,tR,rR]=await Promise.all([fetch('/api/settings'),fetch('/api/settings/tools'),loadRepo()]);
   if(!sR.ok) throw new Error('settings HTTP '+sR.status);
   if(!tR.ok) throw new Error('tools HTTP '+tR.status);
+  if(rR && rR.ok===false) {/* repo load failed but settings still usable */}
   serverSettings=await sR.json();
   const tools=await tR.json();
   if(!serverSettings.ui) serverSettings.ui={...DEFAULT_UI};
   populateGeneralFromSettings();
+  renderCategorizedTools(tools);
   if(!Array.isArray(tools) || tools.length===0){
-   toolsList.innerHTML='';
    toolsEmpty.hidden=false;
   }else{
-   toolsList.innerHTML=tools.map(renderToolRow).join('');
    toolsEmpty.hidden=true;
   }
  }catch(e){
@@ -265,63 +414,181 @@ settingsReset.addEventListener('click',async()=>{
 // --- Tools pane actions ---
 toolsRefresh.addEventListener('click',()=>loadSettingsPane());
 
-toolInstallBtn.addEventListener('click',async()=>{
- const id=(toolInstallId.value||'').trim();
- const url=(toolInstallUrl.value||'').trim();
- if(!ID_RE.test(id)){ setStatus('Tool id must match [a-z0-9][a-z0-9_-]{0,39}','error'); toolInstallId.focus(); return; }
- if(!/^https?:\/\//i.test(url)){ setStatus('URL must start with http(s)://','error'); toolInstallUrl.focus(); return; }
- toolInstallBtn.disabled=true;
+// --- Add Tool: file picker -> validate -> review -> install ---
+let currentAddTask=null;
+let currentToolId=null;
+let existingTools=new Set();
+
+function setAddStatus(msg,kind){
+ if(!toolAddStatus) return;
+ toolAddStatus.textContent=msg||'';
+ toolAddStatus.classList.remove('ok','error');
+ if(kind) toolAddStatus.classList.add(kind);
+ toolAddStatus.hidden=!msg;
+}
+
+function refreshExistingTools(){
+ existingTools=new Set();
  try{
-  const r=await fetch('/api/tools/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,url})});
+  const nodes=toolsList.querySelectorAll('.tool-row');
+  nodes.forEach(n=>{
+   const id=n.dataset&&n.dataset.id;
+   if(id) existingTools.add(id);
+  });
+ }catch(e){}
+}
+
+function resetReview(){
+ toolReviewSection.hidden=true;
+ toolReviewWarnings.hidden=true;
+ toolReviewOverwrite.hidden=true;
+ toolReviewInstall.hidden=false;
+ toolReviewOverwriteBtn.hidden=true;
+ toolReviewWarningsList.innerHTML='';
+ toolReviewFilesList.innerHTML='';
+ if(toolReviewId) toolReviewId.textContent='\u2014';
+ if(toolReviewName) toolReviewName.textContent='\u2014';
+ if(toolReviewKind) toolReviewKind.textContent='\u2014';
+ if(toolReviewUrl) toolReviewUrl.textContent='\u2014';
+ if(toolReviewDescription) toolReviewDescription.textContent='\u2014';
+ if(toolReviewIcon) toolReviewIcon.textContent='\u2014';
+ if(toolReviewNotes) toolReviewNotes.textContent='\u2014';
+ currentAddTask=null;
+}
+
+function renderReview(meta){
+ const fields=[
+  [toolReviewId, meta.id, true],
+  [toolReviewName, meta.name],
+  [toolReviewKind, meta.kind],
+  [toolReviewUrl, meta.url, true],
+  [toolReviewDescription, meta.description],
+  [toolReviewIcon, meta.icon, true],
+  [toolReviewNotes, meta.notes],
+ ];
+ fields.forEach(([el,val,isCode])=>{
+  if(!el) return;
+  if(val==null || val===''){
+   el.innerHTML='<span class="muted">(none)</span>';
+  }else if(isCode){
+   el.innerHTML='<code>'+escapeHtml(val)+'</code>';
+  }else{
+   el.textContent=String(val);
+  }
+ });
+ // Files detected
+ toolReviewFilesList.innerHTML='';
+ (meta.files||[]).forEach(f=>{
+  const li=document.createElement('li');
+  li.textContent=f;
+  toolReviewFilesList.appendChild(li);
+ });
+ // Warnings
+ toolReviewWarningsList.innerHTML='';
+ if(meta.warnings && meta.warnings.length){
+  meta.warnings.forEach(w=>{
+   const li=document.createElement('li');
+   li.textContent=w;
+   toolReviewWarningsList.appendChild(li);
+  });
+  toolReviewWarnings.hidden=false;
+ }else{
+  toolReviewWarnings.hidden=true;
+ }
+ // Overwrite check
+ refreshExistingTools();
+ const exists=existingTools.has(meta.id);
+ if(exists){
+  toolReviewOverwriteId.textContent=meta.id;
+  toolReviewOverwrite.hidden=false;
+  toolReviewInstall.hidden=true;
+  toolReviewOverwriteBtn.hidden=false;
+ }else{
+  toolReviewOverwrite.hidden=true;
+  toolReviewInstall.hidden=false;
+  toolReviewOverwriteBtn.hidden=true;
+ }
+}
+
+toolAddBtn.addEventListener('click',()=>{
+ toolAddFile.value='';
+ toolAddFile.click();
+});
+
+toolAddFile.addEventListener('change',async()=>{
+ const f=toolAddFile.files && toolAddFile.files[0];
+ if(!f) return;
+ setAddStatus('Validating '+f.name+'...','');
+ toolAddBtn.disabled=true;
+ resetReview();
+ currentToolId=null;
+ try{
+  const fd=new FormData();
+  fd.append('file',f);
+  const r=await fetch('/api/tools/preview',{method:'POST',body:fd});
   const j=await r.json();
   if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
-  if(j.output && j.output.includes('Task ID:')){
-   const taskId=j.output.split('Task ID:')[1].trim();
-   await runBgTask(id,taskId,'install',async()=>{ await loadSettingsPane(); toolInstallId.value=''; toolInstallUrl.value=''; setStatus(`Installed ${id}.`,'ok'); if(typeof load==='function') load(); });
-  }else{
-   setStatus('Install started.','ok');
+  if(!j.valid){
+   setAddStatus('Validation failed: '+(j.error||'Archive is missing required files.'),'error');
+   return;
   }
+  currentToolId=j.id;
+  // Render review
+  renderReview(j);
+  toolReviewSection.hidden=false;
+  setAddStatus('Validated. Review the tool and click Install to add it.','ok');
  }catch(e){
-  setStatus('Install failed: '+e.message,'error');
+  setAddStatus('Validation failed: '+e.message,'error');
  }finally{
-  toolInstallBtn.disabled=false;
+  toolAddBtn.disabled=false;
  }
 });
 
-toolUploadBtn.addEventListener('click',()=>{
- const id=(toolUploadId.value||'').trim();
- if(!ID_RE.test(id)){ setStatus('Enter a valid tool id first.','error'); toolUploadId.focus(); return; }
- toolUploadFile.dataset.toolId=id;
- toolUploadFile.dataset.mode=toolUploadMode.value||'new';
- toolUploadFile.value=''; // allow re-selecting same file
- toolUploadFile.click();
+toolReviewCancel.addEventListener('click',()=>{
+ resetReview();
+ setAddStatus('Cancelled.','');
 });
-toolUploadFile.addEventListener('change',async()=>{
- const f=toolUploadFile.files&&toolUploadFile.files[0];
- const id=toolUploadFile.dataset.toolId;
- const mode=toolUploadFile.dataset.mode||'new';
- if(!f||!id) return;
- const fd=new FormData();
- fd.append('id',id);
- fd.append('mode',mode);
- fd.append('file',f);
- toolUploadBtn.disabled=true;
+
+async function startInstall(mode){
+ const id=currentToolId;
+ if(!id){ setAddStatus('No tool selected.','error'); return; }
+ const btn=mode==='overwrite'?toolReviewOverwriteBtn:toolReviewInstall;
+ btn.disabled=true;
+ toolReviewCancel.disabled=true;
  try{
+  const fd=new FormData();
+  // Server keeps the staged zip from /preview, but we don't expose that token.
+  // Instead, just send the original file again with mode=overwrite|new.
+  // (Server uses the same upload endpoint for installation.)
+  // We rebuild FormData with the last selected file (stored on the input).
+  const f=toolAddFile.files && toolAddFile.files[0];
+  if(!f) throw new Error('Source file missing; please reselect the zip.');
+  fd.append('id',id);
+  fd.append('mode',mode);
+  fd.append('file',f);
   const r=await fetch('/api/tools/upload',{method:'POST',body:fd});
   const j=await r.json();
   if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
   if(j.output && j.output.includes('Task ID:')){
    const taskId=j.output.split('Task ID:')[1].trim();
-   await runBgTask(id,taskId,'upload',async()=>{ await loadSettingsPane(); toolUploadId.value=''; setStatus(`Uploaded zip into ${id}.`,'ok'); if(typeof load==='function') load(); });
+   await runBgTask(id,taskId,'upload',async()=>{
+    await loadSettingsPane();
+    resetReview();
+    setAddStatus(mode==='overwrite'?`Reinstalled ${id}.`:'Installed '+id+'.','ok');
+    if(typeof load==='function') load();
+   });
   }else{
-   setStatus('Upload started.','ok');
+   setAddStatus('Install started.','ok');
   }
  }catch(e){
-  setStatus('Upload failed: '+e.message,'error');
- }finally{
-  toolUploadBtn.disabled=false;
+  setAddStatus('Install failed: '+e.message,'error');
+  btn.disabled=false;
+  toolReviewCancel.disabled=false;
  }
-});
+}
+
+toolReviewInstall.addEventListener('click',()=>startInstall('new'));
+toolReviewOverwriteBtn.addEventListener('click',()=>startInstall('replace'));
 
 // Tool row delegated actions (visibility toggle, delete)
 toolsList.addEventListener('click',async e=>{

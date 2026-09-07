@@ -16,8 +16,7 @@ pre{white-space:pre-wrap;background:#0a0e19;padding:10px;border-radius:8px;max-h
 /* Header */
 .topbar{position:sticky;top:0;z-index:150;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 24px;background:rgba(11,16,32,.85);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid #29334d}
 .brand{display:flex;align-items:center;gap:14px;min-width:0}
-.logo-placeholder{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#2b6cff 0%,#b06cff 100%);border:1px dashed rgba(255,255,255,.35);flex-shrink:0;position:relative}
-.logo-placeholder::after{content:"logo";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.5px}
+.brand-logo{width:36px;height:36px;border-radius:8px;object-fit:contain;flex-shrink:0;background:#0d1225}
 .brand-text{display:flex;flex-direction:column;min-width:0}
 .brand-title{font-size:18px;font-weight:600;color:#e8ecf7;line-height:1.1}
 .brand-sub{font-size:11px;color:#9ca8c2;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -148,3 +147,47 @@ canvas{border-radius:4px;background:#0a0e19}
   .tool-row{flex-wrap:wrap}
   .tool-row .tool-actions{width:100%;justify-content:flex-end;margin-top:6px}
 }
+
+
+/* Add Tool: hint + status row */
+.tools-add-hint{margin:0 0 10px;font-size:12px;line-height:1.5}
+.tool-add-status{margin-top:10px;font-size:12px}
+.tool-add-status.error{color:#ff7a7a}
+.tool-add-status.ok{color:#7adf9a}
+
+/* Tool review panel */
+.tool-review{background:#0a0e19;border:1px solid #1a2238;border-radius:8px;padding:12px 14px}
+.tool-review-list{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;margin:0 0 12px}
+.tool-review-list dt{font-size:12px;color:#9ca8c2;text-transform:uppercase;letter-spacing:.4px;font-weight:600;align-self:start;padding-top:2px}
+.tool-review-list dd{margin:0;font-size:13px;color:#e8ecf7;word-break:break-word}
+.tool-review-list dd code{background:#0d1225;padding:1px 6px;border-radius:4px;font-size:12px}
+.tool-review-files h4,.tool-review-warnings h4{margin:8px 0 6px;font-size:11px;color:#9ca8c2;text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.tool-review-files ul,.tool-review-warnings ul{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:6px}
+.tool-review-files li{background:#0d1225;border:1px solid #29334d;border-radius:999px;padding:3px 9px;font-size:11px;color:#cfd6ea;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.tool-review-warnings{background:#2a1f10;border:1px solid #5a4020;border-radius:8px;padding:8px 10px;margin-bottom:10px}
+.tool-review-warnings ul{flex-direction:column;gap:2px}
+.tool-review-warnings li{font-size:12px;color:#ffb86b}
+.tool-review-overwrite{background:#2a1414;border:1px solid #5a2222;border-radius:8px;padding:8px 10px;margin-bottom:10px}
+.tool-review-overwrite p{margin:0;font-size:13px;color:#ffb0b0}
+
+/* Categorized tools (HALO STIX taxonomy) */
+.tools-categories{display:flex;flex-direction:column;gap:8px}
+.tools-category{border:1px solid #1a2238;border-radius:8px;background:#0a0e19;overflow:hidden}
+.tools-category>summary{list-style:none;cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;color:#e8ecf7;user-select:none;transition:background .12s ease}
+.tools-category>summary::-webkit-details-marker{display:none}
+.tools-category>summary:hover{background:#121a31}
+.tools-category>summary:focus-visible{outline:2px solid #2b6cff;outline-offset:-2px}
+.tools-category .cat-icon{font-size:16px;line-height:1;flex-shrink:0}
+.tools-category .cat-name{flex:1}
+.tools-category .cat-count{font-size:11px;color:#9ca8c2;background:#16203a;padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+.tools-category .cat-chevron{width:14px;height:14px;color:#9ca8c2;transition:transform .15s ease;flex-shrink:0}
+.tools-category[open]>summary .cat-chevron{transform:rotate(90deg)}
+.tools-category-body{padding:8px 10px 10px;display:flex;flex-direction:column;gap:6px;border-top:1px solid #1a2238;background:#0d1225}
+.tools-category-empty{padding:10px 14px;font-size:12px;color:#5b6680;font-style:italic;border-top:1px solid #1a2238;background:#0d1225}
+.tools-category .tool-row{background:#0d1225}
+
+/* Not-installed tool row (repo placeholder) */
+.tool-row.not-installed .tool-actions{justify-content:flex-end}
+.tool-row .tool-meta{margin-top:4px;font-size:11px}
+.tool-row .tool-meta code{background:#0a0e19;padding:1px 5px;border-radius:3px;font-size:11px;color:#cfd6ea}
+.tool-row .tool-status.not-installed-tag{background:#2a1f10;color:#ffb86b}
